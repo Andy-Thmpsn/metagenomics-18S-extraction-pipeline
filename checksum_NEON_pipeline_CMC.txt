@@ -1,0 +1,12 @@
+06e5738e1c4477097960344f6ac1021e  checksum_NEON_pipeline_BYU.txt
+136cd1e96eacedac3a80ef775f1f9dcd  postprcs.sh
+16c6b08e391e5aa6bfd8c085d9639dd0  unpack.sh
+233ca03f879deec6a9b94beaf7a19fbd  README.md
+3d7adc83d9534087dee3f6c108dd45df  fstq2fsta.sh
+59ca037cfbd0f44f308e4c3f9b9b1cb9  Guide2Pipeline.txt
+5e2010fc9c303aa5338d0031ae5f27e5  Main.sh
+96124a2fef7b20dea79e938cfa69c6a5  stats.sh
+9e590ff7e5e76230598abd3ff43b27e3  preprocess.sh
+a0214b08be58311d703b97009a051d40  filter.py
+d0154d8f2bf820843ab07e33d39377d4  pipeline.sh
+e73d472025799e05b888e0089a426f69  concatenate.py

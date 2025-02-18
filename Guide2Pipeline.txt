@@ -1,0 +1,229 @@
+LAST UPDATED: 7/6/2023
+
+To-do-list PIPELINE (Pre-Paper #1)
+1) Concatenate R1 and R2 files
+    a) try merging reads (FLASH) before trimming (as suggested by Maran et al 2022) to see if trimming was cutting too many bps
+        i) tried this; results were better than post trimming merge, but still not great.
+    b) would like to make a chart comparing pre and post for a representative sampling of sites to put this to rest (i.e., as if to say "I did the best I could ...")
+2) Add error code and status update capture for better logfiles
+3) Evaluate and incorporate the more sophisticated steps utilized by others (e.g., Metaxa2, MG-RAST, QIIME/Mothur(?)) to make the sequence processing more refined
+    a) Look at code in Metaxa2, taxaTarget, and Eukdetect: are they doing something different than I am, fundamentally? What skills lack I yet?
+4) Improve pre-processing step so that I can grab Legacy Data too and the files that weren't run before.
+2) Figure out/re-run samples that didn't run the first time
+    a) Bring in pre-2015 sites
+        i) Main.sh -p samples works for most, but a few don't work. See file.check for a list of all _temp2.list files. Once all are *not* empty (unless they should be, i.e. because they have no matching *metagenomics* samples) then the main pipeline can be run on these files.
+    b) add site Ed said I missed (didn't download for some reason from the NEON portal when I downloaded the rest to my home pc folder)
+7) Clean up end formatting for table
+5) Clean up taxonomy (Figure out how to align taxonomy better?)
+8) Test the entire pipeline; run a test dataset through pipeline to confirm accuracy
+9) Update/Finish Readme (this document)
+
+
+Ideas Paper #2 (Pre-Funding Proposal Project)
+
+1) Comparing database hits: PR2, SILVA, NCBI etc.
+2) Compare my default pipeline results against Metaxa2, EukDetect, and taxaTarget
+
+Pie-in-the-sky Pipe Dream
+
+1) PacBio sequencing of representitive samples (starting with CORE?)
+2) Mapping sequences against pacbio sequences
+3) Assemble genomes form eukaryote sequences
+4) How do I make mining eukaryotes from Shotgun Metagenomes doable?
+
+To-do-list Proposal Project (Post-funding)
+1) Clean up code and .sh file organization for readability 
+2) Automate data format detection
+3) Automate pipeline running from start to finish
+
+
+
+
+
+7/6/2023
+Problem(s):
+1) DONE - Double check formatting on "rawDataFiles.csv" before they come in; make sure they're all csvs and not txt (tab-delimited)
+    the rawDataFiles.csv have no quotation marks (") while the .mtgnmDnaXtrct do (for some reason...). The difference doesn't seem to affect the processing step though.
+2) DONE - Names required for running samples in TOOL_2017-07.metadata.tbl do not match other .metadata.tbl files
+    Just custom make/edit the .list files since you only have to make them once. That's the easiest shortcut I can find.
+3) the final OTU file is mostly separated by spaces. I would prefer it be tab-delimited
+4) DOUBLE-CHECK METADATA.TBLs -- did I actually get all the metagenome files I was supposed to?
+5) DONE - what's the best way to unzip/unpack all the compressed, raw sequence files? Combine them into one? Keep them separate and make another option that calls both at once when needed?
+6) DONE - KONZ_2020 has a wierd extension (_PROV) in the raw data files list, but not in the metadata or its own files names. Keep an eye out for it. For now, I'll just manually edit it anytime I see the extra "_PROV"
+COMBINED - check with ED 7) KONZ_2017-07 has two read file pairs that are labeled *_R1aa and *_R1ab. I don't know how prevalent this is but it's going to make it hard for me to run them... I could probably just cut them out? Maybe they aren't even metagenome ones? Just keep an eye out for stuff like this in the .list files
+    Ask NEON Ed, do some digging. Also, I could just combine them manually (unless they're occurring a lot, then it would be pretty easy to automate that too.
+8) WORKING - new *.list generator seems to be working for the most part, but it tagged 22 files for TOOL_2017-07 and I know there are actually 19. In addition, many of the *.list files were blank, probably those where $1 of metadata.tbl was not the same as the others.
+   I've figured this out mostly. There are a few fixes to still be made:
+    A) DONE - Some of the raw directories have directories themselves; my current solution is getting tripped up by those directories. I will need to mv stuff from inside those directories to the main file folder. See if there is a way to automate that process.
+    B) DONE - A "*fastq" file shows up in a lot of the directories. I'm not sure what program made them, but it was probably the unpacking step. It puts a blank line in the *_temp.list, but doesn't seem to affect the *.list files (which it shouldn't). I would still like to clean it up though.
+    C) FIXED - HARV_2013-07 and HARV_2013-11 are wonky (.zip) and have a large directory tree inside. Not sure what to do with them yet and I'll probably skip them for this round.
+9)(fyi, 20 TB mem limit) lot of the directories contain their zipped files along with the unpacked ones. I'm not sure what the space limitations are, but I would like to fix that so that either they are deleted after being unzipped, and/or the ones that are not used (not metagenomes) are deleted. This makes sense because I rezip files in my pipeline. However, the files that I get from NEON are tarred together and I don't know how they're tarred, so if space isn't an issue, maybe just leave them be until I know I don't need them anymore (i.e., once everything runs smoothly and I can get an OTU file every time)? 
+10) HARV_2013-11 and HARV_2013-07 have a different number of columns than other metadata files and that's why join isn't working on their .rawDatafiles.tbl and .metagenomeDnaExtraction.tbl ; TOOL_2017-07 may have the same problem. Now that these files have headers, it might be better to just go and grab columns by their headers. (might have to use a non-bash program for that though).
+
+
+Problems with OTU table
+7/11/2022
+Problem(s):
+1) DONE - Double check formatting on "rawDataFiles.csv" before they come in; make sure they're all csvs and not txt (tab-delimited)
+    the rawDataFiles.csv have no quotation marks (") while the .mtgnmDnaXtrct do (for some reason...). The difference doesn't seem to affect the processing step though.
+2) DONE - Names required for running samples in TOOL_2017-07.metadata.tbl do not match other .metadata.tbl files
+    Just custom make/edit the .list files since you only have to make them once. That's the easiest shortcut I can find.
+3) the final OTU file is mostly separated by spaces. I would prefer it be tab-delimited
+4) DOUBLE-CHECK METADATA.TBLs -- did I actually get all the metagenome files I was supposed to?
+5) DONE - what's the best way to unzip/unpack all the compressed, raw sequence files? Combine them into one? Keep them separate and make another option that calls both at once when needed?
+6) DONE - KONZ_2020 has a wierd extension (_PROV) in the raw data files list, but not in the metadata or its own files names. Keep an eye out for it. For now, I'll just manually edit it anytime I see the extra "_PROV"
+COMBINED - check with ED 7) KONZ_2017-07 has two read file pairs that are labeled *_R1aa and *_R1ab. I don't know how prevalent this is but it's going to make it hard for me to run them... I could probably just cut them out? Maybe they aren't even metagenome ones? Just keep an eye out for stuff like this in the .list files
+    Ask NEON Ed, do some digging. Also, I could just combine them manually (unless they're occurring a lot, then it would be pretty easy to automate that too.
+8) WORKING - new *.list generator seems to be working for the most part, but it tagged 22 files for TOOL_2017-07 and I know there are actually 19. In addition, many of the *.list files were blank, probably those where $1 of metadata.tbl was not the same as the others.
+   I've figured this out mostly. There are a few fixes to still be made:
+    A) DONE - Some of the raw directories have directories themselves; my current solution is getting tripped up by those directories. I will need to mv stuff from inside those directories to the main file folder. See if there is a way to automate that process.
+    B) DONE - A "*fastq" file shows up in a lot of the directories. I'm not sure what program made them, but it was probably the unpacking step. It puts a blank line in the *_temp.list, but doesn't seem to affect the *.list files (which it shouldn't). I would still like to clean it up though.
+    C) FIXED - HARV_2013-07 and HARV_2013-11 are wonky (.zip) and have a large directory tree inside. Not sure what to do with them yet and I'll probably skip them for this round.
+9)(fyi, 20 TB mem limit) lot of the directories contain their zipped files along with the unpacked ones. I'm not sure what the space limitations are, but I would like to fix that so that either they are deleted after being unzipped, and/or the ones that are not used (not metagenomes) are deleted. This makes sense because I rezip files in my pipeline. However, the files that I get from NEON are tarred together and I don't know how they're tarred, so if space isn't an issue, maybe just leave them be until I know I don't need them anymore (i.e., once everything runs smoothly and I can get an OTU file every time)? 
+10) HARV_2013-11 and HARV_2013-07 have a different number of columns than other metadata files and that's why join isn't working on their .rawDatafiles.tbl and .metagenomeDnaExtraction.tbl ; TOOL_2017-07 may have the same problem. Now that these files have headers, it might be better to just go and grab columns by their headers. (might have to use a non-bash program for that though).
+
+
+Problems with OTU table
+    In excel, when I push text to columns, for some reason the taxonomy header gets clipped (maybe because its just too long? What's excel's limit?) forcing me to manually edit the table. Not super time-consuming, but I wouldn't want to do it everytime
+
+
+OTU table format:
+1) The column labels and OTU_# labels do not come out as "tab delimited". The rest (taxonomic headings), sites, metadata and counts, do.
+2) BMI_Plate41WellH8 and -H9 don't have any metadata ...
+3) you could probably easily grep out different sites, sum the totals, add the header back on, then use those files to filter out 0s and count things by group
+    okay, so that's not actually super simple. Maybe for a later date.
+4) WHERE IS TOOL???? None of the TOOL siets showed up in the "final" otu table ... (Aug 5 2022)
+5) the OTU table is kind of awkward to work with. Might make more sense just to make a separate taxonomy table and OTU table with OTU #'s linking the two
+6) Is there a way to finish all of the sites in one week?
+    Yes. 
+    1) Skip the sensitivity nonsense.
+    2) Test quickly.
+    3) Double check mergings. 
+    4) Run stuff over the weekend next weekend.:wq
+
+Read merging issue:
+    For some reason, I can't get any more than a small proportion of the reads to merge using FLASH (to be fair, I've only tried it with TOOL_2017...).
+        I assume the data is paired end because its organized into corresponding _R1 and _R2 files.
+        That a small proportion of them *are* merging suggests: 
+            1) that the  data *is* paired-end and that most of the reads simply don't overlap enough (after trimming) to actually merge
+             NOTE: this appears to be correct. At the very end of the BMI_metagenomicsSequencingSOP_v3 doc it says "NextSeq High Output 300 Cycle cartridges" were used. As the average read lengths in the data files are about 150 bp in length, I can only conclude that they did 2x150 with (at minimum) 300 bp insert size.
+            2) the the data is paired-end but not overlapping and I've just loosened the FLASH parameters enough to enable merging in a minority of cases, randomly
+              a) how to determine this? examine the lengths of the merged reads? I'm not sure that would help as I don't know the insert length
+             NOTE: This appears to be incorrect (see above)
+
+   CONCLUSION:  THE READS DO NOT APPEAR TO BE OVERLAPPING, BUT THEY ARE PAIRED END.     
+
+    How to move forward:
+      1)DONE  Try to find out the insert size (ask ed if you can't find it in the metadata or the protocol pdfs)  
+        i) I could confirm with Ed or NEON directly
+        ii) are all the read lengths ~150?i
+            a) check FASTQ files
+
+
+OVERVIEW OF SCRIPTS
+
+MAIN.SH
+
+1) Unpack
+    i)
+    ii)
+    iii)
+   iv)  UNCOMPRESS zipped files in compute node. Automatically detects file extension. Uncompressed files are placed in the same directory as zipped files.
+         Pipeline/Main.sh -u all (all sites; reads in a list found in: ??? )
+         Pipelein/Main.sh -u tar/gz/zip (one site at a time; extension is specified when command is run; user inputs site name whem prompted)
+
+
+2) Obtain and format metadata files; prepare sample "run lists" for main pipeline (i.e., Pipeline/pipeline.sh)
+  
+   i)   UPLOAD metadata files and store at ~/NEON/Xtract/SSU_BLAST/mtgnm.../ (NOTE: I am considering moving the metadata files to ~/NEON/ and renaming the mtgnm.../ file folder to something more fitting (e.g., metadata/)
+         NEON metadata files (*.rawDataFiles.csv and *.metagenomeDnaExtracts.csv) are downloaded from the NEON website, stored on my windows machine, then transferred to MaryLou using WinSCP
+   ii)   GENERATE a master list of site names from the names of the original metadata files downloaded from NEON, then send it to a text file
+  
+   iii)  RENAME metadata files for convenience
+         Pipeline/Main.sh -p rename
+
+   iv)   REFORMAT *.rawDataFiles.csv and *.metagenomeDnaExtracts.csv to *.tbl (respectively) with only "metagenome" type samples; 
+            NOTE: Double check that grep -P "\tmetagenomics\t" actually doesn't pick up on "marker genes and metagenomics"
+
+            
+
+   v) produce *.list (sample "run lists") files by comparing *.tbl files to raw file names in compute node
+         Pipeline/Main.sh -p reformat
+    
+    v)
+
+
+3) Run Main Pipeline (Pipeline/pipeline.sh)
+    
+    //NEEDS UPDATING// ## 7/27/2022
+
+PIPELINE.SH    
+
+1) Data Preparation (Pipeline/pipeline.sh
+
+    i)   PRE-FASTQC
+
+    ii)  TRIM
+
+    iii) MERGE
+ 
+    iv)  POST-FASTQC
+
+    iv)  Cleanup
+
+2) rDNA Extraction 
+
+    i)  ??? 
+
+    ii)  ???
+
+    iii) ???
+
+
+3) Sequence Identification
+
+    i)  ??? 
+
+    ii)  ???
+
+    iii) ???
+
+
+
+POSTPRCS.SH
+
+
+
+
+
+
+OLD? vvv
+
+
+1) Make Samplelist for each site using metadata files [Add file extensions from NEON vs here].
+    a) filter raw files for metagenome only (using metadata)
+    b) use sample name column ($10) from metadata file to populate [SITE].list, which is then stored in MTDA_PATH.
+    c) use [SITE].list to run pipeline.sh
+5) When adding metadata file, use $10 in metadata files to join raw OTU table with metadata (columns $6, $10)
+
+
+
+
+
+Breakdown of sh files
+Main.sh
+    Usage:
+    -d Get_Data
+    -p pre-Process (requires an argument)
+        list ~ CREATE LIST OF FILES TO PROCESS PER SITE [!!//!!NOTE: THIS IS DEPENDENT ON META BEING RUN FIRST]
+        tar ~ UNPACK MULTIPLE *.tar.gz FILES AT ONCE
+        zip ~ UNPACK MULTIPLE *.gz FILES AT ONCE
+        meta ~ PROCESS METADATA FILES
+    -m run Main pipeline (requires an argument "SITE")
+    -t build super Table
+    -u Usage
+
+
+pipeline.sh
+
+postprcs.sh
