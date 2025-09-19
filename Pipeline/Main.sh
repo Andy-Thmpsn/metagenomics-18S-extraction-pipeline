@@ -1,11 +1,14 @@
 #!/bin/bash
 
+#SBATCH --job-name=NEON_main
+#SBATCH --output=logs/mainNEON_%j.out
+#SBATCH --error=logs/mainNEON_%j.err
 #SBATCH --time=8:00:00 
 #SBATCH --ntasks=2
 #SBATCH --nodes=1
 #SBATCH --mem=4GB 
-
-#SBATCH -J fstq2fsta_testing -o /fslhome/orange77/NEON_processed/LogFiles --mail-user=orange7724@gmail.com --mail-type=BEGIN --mail-type=END --mail-type=FAIL
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=athompson@cmc.edu
 
 export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 
@@ -34,13 +37,14 @@ export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 
 ## VARIABLES ##
 
-HOME_PATH=~/NEON_processed
-RAW_PATH=~/compute/NEON/Raw
+HOME_PATH=/hopper/groups/yoosephlab/athompson/NEON_18S_Xtrct
+PROCESSED_PATH=$HOME_PATH/NEON_processed
+RAW_PATH=~$HOME_PATH/NEON_raw
 LINKS_PATH=$HOME_PATH/DataLinks
-HMMR_PATH=$HOME_PATH/Xtract/SSU_BLAST  ## BEWARE: Path name and variable_name match what is in ~/NEON_processed/Pipeline/pipeline.sh. DO NOT CHANGE.
+HMMR_PATH=$PROCESSED_PATH/Xtract/SSU_BLAST  ## WARNING: Path name and variable_name match what is in ~/NEON_processed/Pipeline/pipeline.sh. DO NOT CHANGE.
 MTDA_PATH=$HMMR_PATH/mtgnmDnaXtrcts
-QC_PATH=$HOME_PATH/QCtrl
-TRMD_PATH=~/compute/NEON/Trimmed
+QC_PATH=$PROCESSED_PATH/QCtrl
+TRMD_PATH=$HOME_PATH/NEON_trimmed
 LOG_PATH=$HOME_PATH/LogFiles
 
 scripts=$HOME_PATH/Pipeline
@@ -477,33 +481,18 @@ super_tables ()  {
  PFX_ALL=All_          ##THREE STRINGS IN A ROW NOT WORKING; CHANGE MANUALLY  ## BEWARE: Prefix and variable_name match what is in ~/NEON_processed/Pipeline/pipeline.sh. DO NOT CHANGE.
 
 ## 7. MAKE COMBINED BH_txID.tbl FOR $SITE AND ADD $SITE NAME TO END OF LINE
-  #WARNING: THIS WILL BREAK IF THERE IS ALREADY AN "ALL_SITE" TAX_ID FILE IN THE FOLDER (I NEED TO EVENTUALLY FIX IT)
 
-  printf "Checking to see if a combined BH_txID.tbl currently exists.\n"
+  #printf "Checking to see if a combined BH_txID.tbl currently exists.\n"
 
   while read site_name; do
- 
-   FILE=$HMMR_PATH/${site_name}/All_${site_name}${SFX_blstBHtax}
 
-   proceed=1
-   
-   if [ -f "$FILE" ]; then
+    if [ -f "$HMMR_PATH/${site_name}/All_${site_name}${SFX_blstBHtax}" ]; then
+     rm "$HMMR_PATH/${site_name}/All_${site_name}${SFX_blstBHtax}"
+    fi
   
-     printf "Warning: $FILE already exists. Please remove the old one before making a new instance of $FILE\n"
+    cat $HMMR_PATH/${site_name}/*"$SFX_blstBHtax" | awk -v s=${site_name} -v OFS="\t" '{print $0, s}' > $HMMR_PATH/${site_name}/All_${site_name}${SFX_blstBHtax}
 
-     rm $FILE
-    
-    echo "Warning: Super BH Table will not be complete.\n"
- 
-   else
-  
-     printf "None does! Making a new one.\n"
-   
-     cat $HMMR_PATH/${site_name}/*"$SFX_blstBHtax" | awk -v s=${site_name} -v OFS="\t" '{print $0, s}' >> $HMMR_PATH/${site_name}/All_${site_name}${SFX_blstBHtax}
- 
-   fi
-  
- done<$HMMR_PATH/$SiteList 
+  done<$HMMR_PATH/$SiteList 
 
 ## GATHER ALL SITE-SPECIFIC SUMMARY TABLES INTO ONE SUPER TABLE
 
@@ -519,7 +508,7 @@ OTU_tbl () {
 
  ## Build super table, create reference docs (taxa list and sample list) and taxonomic header for the final OTU table
  
-  $scripts/postprcs.sh "-g"
+  $scripts/postprcs.sh "-a"
  
  ## Create copies of reference docs for each partition, then run the OTU table building subroutine in postprcs.sh on each partition seperately
  for i in $HMMR_PATH/Partitions/AllSites.samples.*; do
@@ -565,6 +554,7 @@ multi_qc () {
  fi
 
 } 
+
 
 
 usage (){

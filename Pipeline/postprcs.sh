@@ -1,9 +1,16 @@
 #!/bin/bash
 
+#SBATCH --job-name=NEON_otutable
+#SBATCH --output=logs/otutableNEON_%j.out
+#SBATCH --error=logs/otutableNEON_%j.err
 #SBATCH --time=24:00:00 
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --mem=8GB 
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=athompson@cmc.edu
+
+
 export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 
 
@@ -30,7 +37,8 @@ export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 
 ## VARIABLES ##
 
-HMMR_PATH=~/NEON_processed/Xtract/SSU_BLAST/
+BASE_PATH=/hopper/groups/yoosephlab/athompson/NEON_18S_Xtrct
+HMMR_PATH=${BASE_PATH}/NEON_processed/Xtract/SSU_BLAST
 PARTITION_PATH=$HMMR_PATH/Partitions
 SFX_blstBHtax=.hmmblst.BH_txID.tbl   ## BEWARE: Suffix and variable_name match what is in ~/NEON_processed/Main.sh. DO NOT CHANGE WITHOUT CHANGING THAT FILE TOO.
 PFX_ALL=All_                         ## BEWARE: Prefix and variable_name match what is in ~/NEON_processed/Pipeline/pipeline.sh. DO NOT CHANGE WITHOUT CHANGING THAT FILE TOO.
@@ -47,10 +55,10 @@ AllTaxa_list=AllSites_list.taxa
 OTUtbl_long_pre=AllSites_long_pre.otu
 OTUtbl_long_final=AllSites_long_final.otu
 
-echo "Sample List: $SampleList_Part"
-echo "OTU Table: $OTUtbl_long_Part"
-echo "Taxa List: $AllTaxa_list_Part"
-echo "Tax ID Table: $AllTaxIDTable_Part"
+echo "Sample List: $SampleList"
+echo "OTU Table: $OTUtbl_long_pre"
+echo "Taxa List: $AllTaxa_list"
+echo "Tax ID Table: $AllTaxIDTable"
 
 
 ## FUNCTIONS ##
@@ -69,9 +77,9 @@ gather_tables () {
     awk '{print $8}' $HMMR_PATH/$AllTaxIDTable | sort -u > $HMMR_PATH/$AllTaxa_list # | head -n 10
 
  ## Get a list of all 1) Families, 2) Genera, or 3) Species in BestHit
-    #awk -v OFS="\t" '{print $2, $3, $4, $5, $6, $7}' $HMMR_PATH/$AllTaxIDTable | sort -u | # tee $HMMR_PATH/$AllTaxa_list |                                                
-    awk -v OFS="\t" '{print $2, $3, $4, $5, $6, $7, $8}' $HMMR_PATH/$AllTaxIDTable | sort -u -k7,7 | #head -n 10 | tee check_list.taxa |
-    #awk -v OFS="\t" '{print $2, $3, $4, $5, $6, $7, $8, $9}' $HMMR_PATH/$AllTaxIDTable | sort -u | # tee $HMMR_PATH/$AllTaxa_list |                                       
+    #awk -v OFS="\t" '{print $2, $3, $4, $5, $6, $7}' $HMMR_PATH/$AllTaxIDTable | sort -u | # tee $HMMR_PATH/$AllTaxa_list | #TO FAMILY
+    awk -v OFS="\t" '{print $2, $3, $4, $5, $6, $7, $8}' $HMMR_PATH/$AllTaxIDTable | sort -u -k7,7 | #head -n 10 | tee check_list.taxa | #TO GENUS
+    #awk -v OFS="\t" '{print $2, $3, $4, $5, $6, $7, $8, $9}' $HMMR_PATH/$AllTaxIDTable | sort -u | # tee $HMMR_PATH/$AllTaxa_list | #TO SPECIES                            
 
  
     ## The following code is for transposing the taxonomic table. It works, but I found it on the internets and don't exactly know what it's doing. I would like to figure that out at some point...
@@ -118,20 +126,39 @@ OTU_long () {   ## OTU as X/long
     # when sample list is split into partitions of 20 each, this approach takes between 1 and 9 hours per partition to run (!!!!)
     # there must be a faster way...
 
-#clear previous OTU tbl (long) file
-truncate -s 0 $PARTITION_PATH/$OTUtbl_long_Part  
- #printf "" > $HMMR_PATH/$OTUtbl_long
+awk -v OFS="\t" '
+{
+    taxon = $8      # column for taxon
+    sample = $21     # column for sample
+    site = $22      # column for site
+    count[sample, site, taxon]++
+}
+END {
+    for (key in count) {
+        split(key, arr, SUBSEP)
+        print arr[1], arr[2], arr[3], count[key]
+    }
+}' $HMMR_PATH/$AllTaxIDTable > $HMMR_PATH/$OTUtbl_long_pre
 
-readarray -t samples < $PARTITION_PATH/$SampleList_Part
-readarray -t taxa < $PARTITION_PATH/$AllTaxa_list_Part
+printf "\tOTU Table Complete!\n"
+
+exit
+
+# OLD, SUPER SLOW WAY (UPDATED9/8/2025)
+#clear previous OTU tbl (long) file
+truncate -s 0 $PARTITION_PATH/$OTUtbl_long_pre  
+ #printf "" > $HMMR_PATH/$OTUtbl_long_pre
+
+readarray -t samples < $PARTITION_PATH/$SampleList
+readarray -t taxa < $PARTITION_PATH/$AllTaxa_list
 
 for sample in "${samples[@]}"; do
-  echo $sample 
-  printf '\n%s\t' "$sample" >> $PARTITION_PATH/$OTUtbl_long_Part
+#  echo $sample 
+  printf '\n%s\t' "$sample" >> $PARTITION_PATH/$OTUtbl_long_pre
   
   for taxon in ${taxa[@]}; do
-#    echo $j
-    grep -c -e "$taxon.*$sample" $PARTITION_PATH/$AllTaxIDTable_Part | tr '\n' '\t' >> $PARTITION_PATH/$OTUtbl_long_Part   
+#    echo $taxon
+    grep -c -e "$taxon.*$sample" $PARTITION_PATH/$AllTaxIDTable | tr '\n' '\t' >> $PARTITION_PATH/$OTUtbl_long_pre   
   done
 done
 
@@ -164,16 +191,22 @@ metadata (){
  done<$HMMR_PATH/$SiteList
 
 ## Merge Partitioned OTU tables
-cat $PARTITION_PATH/AllSites_long.otu.* > $HMMR_PATH/$OTUtbl_long_pre
+#cat $PARTITION_PATH/AllSites_long.otu.* > $HMMR_PATH/$OTUtbl_long_pre
 
 ## Merge OTU table and metadata into new OTU table (without headers) 
- join --nocheck-order -1 1 -2 1 <(awk '{print $NF, $7, $9}' $MTDA_PATH/*.metadata2.tbl | sort -k 1) <(tail -n+2 $HMMR_PATH/$OTUtbl_long_pre | sort -k1)> $HMMR_PATH/AllSites_longOTU.temp
+ join -t $'\t' -a 2 -e "NA" -o auto -1 1 -2 1 \
+     <(awk '{print $NF "\t" $7 "\t" $9}' $MTDA_PATH/*.metadata2.tbl | sort -k 1,1) \
+     <(sort -k 1,1 $HMMR_PATH/$OTUtbl_long_pre) \
+ > $HMMR_PATH/AllSites_longOTU.temp
 
-## Add Metadata Column Names to OTU+Taxonomy Column headers
- awk 'BEGIN{a=0; printf "Raw_File_Name\tCollection_Date\tMetadata_Tag\tSite_Name\t"}{b=++a; printf "OTU_%d\t",b}END{printf "\n"}' $HMMR_PATH/$AllTaxa_list >> $HMMR_PATH/$AllTaxa_head                 
+
+## Add Metadata Column Names to U+Taxonomy Column headers
+ awk 'BEGIN{a=0}{b=++a; printf "OTU_%d\t",b}END{printf "\n"}' $HMMR_PATH/$AllTaxa_list >> $HMMR_PATH/$AllTaxa_head                 
+ 
+# awk 'BEGIN{a=0; printf "Raw_File_Name\tCollection_Date\tMetadata_Tag\tSite_Name\tPhylum\tClass\Family\tGenus\t"}END{printf "\n"}' $HMMR_PATH/$AllTaxa_list >> $HMMR_PATH/$AllTaxa_head                 
  
 ## Merge Metadata Column Name + OTU/Taxonomy Header with new OTU table to make FINAL OTU table
-cat $HMMR_PATH/$AllTaxa_head $HMMR_PATH/AllSites_longOTU.temp > $HMMR_PATH/$OTUtbl_long_final
+#cat $HMMR_PATH/$AllTaxa_head $HMMR_PATH/AllSites_longOTU.temp > $HMMR_PATH/$OTUtbl_long_final
 
 ## Remove metadata2.tbls (for clarity and storage space)
 # rm $MTDA_PATH/*.metadata2.tbl

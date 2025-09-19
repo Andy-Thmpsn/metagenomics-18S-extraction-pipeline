@@ -1,10 +1,15 @@
 #!/bin/bash
 
+#SBATCH --job-name=neon_pipeline
+#SBATCH --output=logs/pipelineNEON_%j.out
+#SBATCH --error=logs/pipelineNEON_%j.err
 #SBATCH --time=16:00:00 
 #SBATCH --ntasks=4
 #SBATCH --nodes=1
 #SBATCH --mem=24GB 
-#BATCH -J taxaTarget-TOOL_17-07 -o /fslhome/orange77/NEON_processed/taxaTarget/TOOL_17-07/ --mail-user=andy_thompson@byu.edu --mail-type=BEGIN --mail-type=END --mail-type=FAIL
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=athompson@cmc.edu
+
 #export OMP_NUM_THREADS=$SLURM_CPUS_ON_NODE
 
 #################
@@ -30,17 +35,21 @@
 
 
 ## VARIABLES ##
+NAME="BMI_Plate42WellH10"
+SITE="ABBY_2017-06"
 
-PRE_PATH=~/compute/NEON
-RAW_PATH=$PRE_PATH/Raw
-PRCS_PATH=~/NEON_processed
+
+SOFTWARE=/hopper/groups/yoosephlab/software
+HOME_PATH=/hopper/groups/yoosephlab/athompson/NEON_18S_Xtrct
+RAW_PATH=$HOME_PATH/NEON_raw
+PRCS_PATH=$HOME_PATH/NEON_processed
 QC_PATH=$PRCS_PATH/QCtrl
-MRGD_PATH=$PRE_PATH/Merged
-TRMD_PATH=$PRE_PATH/Trimmed
+MRGD_PATH=$HOME_PATH/NEON_merged
+TRMD_PATH=$HOME_PATH/NEON_trimmed
 MTXA_PATH=$PRCS_PATH/Xtract/Metaxa2
 HMMR_PATH=$PRCS_PATH/Xtract/SSU_BLAST
 
-SCRPT_PATH=$PRCS_PATH/Pipeline
+SCRPT_PATH=$HOME_PATH/Pipeline
 
 THREADS=4
 
@@ -65,7 +74,7 @@ SFX_FA=.trmd.fasta
 
 ## 2. Make copies of raw fastq files so we can convert one copy to fasta
  cp $TRMD_PATH/$SITE/"$NAME""$SFX_FQ" $TRMD_PATH/$SITE/"$NAME""$SFX_FQ_2" 
-# cp $TRMD_PATH/$SITE/"$NAME""$SFX_FQ_2" $TRMD_PATH/$SITE/"$NAME""$SFX_FQ" 
+ #cp $TRMD_PATH/$SITE/"$NAME""$SFX_FQ_2" $TRMD_PATH/$SITE/"$NAME""$SFX_FQ" 
 
 
 ## 3. Convert each read file from fastq to fasta format
@@ -82,7 +91,7 @@ SFX_FA=.trmd.fasta
  printf "\tFastq Files Zipped Away for Another Day!\n"
 
 
-printf "PART 1: COMPLETE!\n\n"
+ printf "PART 1: COMPLETE!\n\n"
 
 
 
@@ -115,7 +124,7 @@ printf "\nPART 2: BEGIN rDNA EXTRACTION FROM FASTA FILES.\n"
 
 ## C. EXTRACT CORRESPONDING BEST HIT 18S SEQUENCES FROM ORIGINAL FASTA FILE
 
-printf "\tExtracting Best Hits from Original Fasta File...\n"
+ printf "\tExtracting Best Hits from Original Fasta File...\n"
 
 SFX_hmmBH=_hmm.besthit.tbl
 SFX_hmmQUERY=.hmm.queries
@@ -144,32 +153,51 @@ SFX_blstOUT=.hmmblst.tbl6
 SFX_blstOUT_filtered=.hmmblst.tbl6.filt
 SFX_blstBH=.hmmblst.BH.tbl
 SFX_blstBHtax=.hmmblst.BH_txID.tbl
+Seqs_lost_table=SeqsFailingCutoffs.tbl
 PFX_ALL=All_
-DATABASE=~/programs/ncbi-blast-2.13.0+/bin/pr2db_blstfmt
-TAXID_File=~/programs/ncbi-blast-2.13.0+/bin/pr2_version_4.14.0_SSU_mothur.tax
+DATABASE=$HOME_PATH/database/pr2/pr2db_blstfmt
+TAXID_File=$HOME_PATH/database/pr2/pr2_version_4.14.0_SSU_mothur.tax
 SeqID_Cutoff=93.000
-SeqLength_Cutoff=125    #in bp
+SeqLength_Cutoff=125 #in bp
+QueryCoverage_Cutoff=0.90 #percent
 
 ## 1. BLAST EXTRACTED SEQUENCES AGAINST PR2 DATABASE
  blastn -num_threads $THREADS -db $DATABASE -query $HMMR_PATH/$SITE/"$NAME""$SFX_hmmFASTA" -outfmt 6 -out $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT"  # Sequences from euk_barr + nhmmr (custom)
 
 ####////!!!! THIS SECTION NEEDS TESTING/DOUBLE CHECKING !!!!!\\\\####
 
-## 2. FILTER TBL6 BLAST OUTPUT FOR LOW %ID SEQUENCE HITS AND SHORT SEQUENCE LENGTH 2/10/2023
+## 2. FILTER TBL6 BLAST OUTPUT FOR LOW %ID SEQUENCE HITS, LOW QUERY COVERAGE, and SHORT SEQUENCE LENGTH 2/10/2023; revised 8/27/2025
   #Argument input sequence matters: it should be "file_name", "SeqID", then "SeqLength"
-  python $SCRPT_PATH/filter.py $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT" $SeqID_Cutoff $SeqLength_Cutoff > $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT_filtered" 
+  python $SCRPT_PATH/filter.py $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT" $SeqID_Cutoff $SeqLength_Cutoff $QueryCoverage_Cutoff > $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT_filtered" 
   echo "Min_ID: $SeqID_Cutoff"
   echo "Min_Length: $SeqLength_Cutoff "
+  echo "Min_Query_Coverage: $QueryCoverage_Cutoff percent"
 
-## 3. CONVERT HITS FROM BLASTN TO BEST HIT (ONE HIT ONLY)
+
+## 3. CALCULATE SEQUENCES LOST FROM FILTERING STEP AND ADD TO SEQS_LOST TABLE
+  #NEEDS TESTING 8/22/2025
+  #Seqs_lost = unique length of input file ($SFX_blstOUT) minus unique length of output file ($SFX_blstOUT_filtered)  
+  SeqsHit=$(wc -l < "$HMMR_PATH"/"$SITE"/"$NAME""$SFX_blstOUT")
+  SeqsAfterFiltering=$(wc -l < $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT_filtered")
+  Seqs_lost=$(( $(wc -l < $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT") - $(wc -l < $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT_filtered") ))
+  #Add $Seqs_lost to SFX_SeqsLost.tbl
+  echo "$Site\t$NAME\t$SeqsHit\t$SeqsFiltered\t$SeqsLost"  >> $HMMR_PATH/$SITE/"$NAME""$Seqs_lost_table"
+  echo "Seqs_Lost: $Seqs_lost"
+
+
+## 4. CONVERT HITS FROM BLASTN TO BEST HIT (ONE HIT ONLY)
 sort -k1,1 -k12,12nr -k11,11n $HMMR_PATH/$SITE/"$NAME""$SFX_blstOUT_filtered" | sort -u -k1,1 >  $HMMR_PATH/$SITE/"$NAME""$SFX_blstBH"                                
+echo "Hits Converted..."
 
-## 4. MERGE BEST HIT TABLE WITH ASSOCIATED TAXONOMIC LINEAGE
+## 5. MERGE BEST HIT TABLE WITH ASSOCIATED TAXONOMIC LINEAGE
 join --nocheck-order -1 1 -2 2 <(sort -k 1 $TAXID_File) <(sort -k 2 $HMMR_PATH/$SITE/"$NAME""$SFX_blstBH") | tr ' ' "\t" > $HMMR_PATH/$SITE/"$NAME""$SFX_blstBHtax"
 
-## 5. ADD $NAME=BMI_HHGLLBGXH_Plate19S_36WellE7
+echo "Taxonomy added ..."
+
+## 6. ADD $NAME'
 sed -i 's/;/\t/g' $HMMR_PATH/$SITE/"$NAME""$SFX_blstBHtax" ;  sed -i "s/$/\t$NAME/g" $HMMR_PATH/$SITE/"$NAME""$SFX_blstBHtax"
 
+echo "Sample Names added" 
 printf "\nPART 3: SEQUENCE IDENTIFICATION COMPLETE!\n\n"
 
 
